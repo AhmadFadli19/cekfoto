@@ -22,42 +22,42 @@ function formatRupiah(num) {
   return 'Rp ' + num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 }
 
-// ==================== INDONESIA GEOJSON (Simplified) ====================
+// ==================== INDONESIA GEOJSON (from real GeoJSON data) ====================
 const INDONESIA_PROVINCES = {
-  "AC": { name: "Aceh", center: [4.695, 96.749] },
-  "SU": { name: "Sumatera Utara", center: [2.116, 99.545] },
-  "SB": { name: "Sumatera Barat", center: [-0.739, 100.800] },
-  "RI": { name: "Riau", center: [1.589, 101.382] },
-  "JA": { name: "Jambi", center: [-1.610, 103.613] },
-  "SS": { name: "Sumatera Selatan", center: [-3.319, 104.914] },
-  "BE": { name: "Bengkulu", center: [-3.793, 102.259] },
-  "LA": { name: "Lampung", center: [-4.558, 105.406] },
-  "BB": { name: "Kep. Bangka Belitung", center: [-2.741, 106.440] },
-  "KR": { name: "Kep. Riau", center: [3.945, 108.143] },
-  "JK": { name: "DKI Jakarta", center: [-6.211, 106.845] },
-  "JB": { name: "Jawa Barat", center: [-6.889, 107.640] },
-  "JT": { name: "Jawa Tengah", center: [-7.150, 110.140] },
-  "JI": { name: "Jawa Timur", center: [-7.536, 112.238] },
-  "YO": { name: "DI Yogyakarta", center: [-7.797, 110.369] },
-  "BT": { name: "Banten", center: [-6.405, 106.064] },
-  "BA": { name: "Bali", center: [-8.409, 115.189] },
-  "NB": { name: "Nusa Tenggara Barat", center: [-8.652, 117.361] },
-  "NT": { name: "Nusa Tenggara Timur", center: [-8.657, 121.079] },
-  "KB": { name: "Kalimantan Barat", center: [-1.681, 109.330] },
-  "KT": { name: "Kalimantan Tengah", center: [-1.681, 113.382] },
-  "KS": { name: "Kalimantan Selatan", center: [-3.092, 115.283] },
-  "KI": { name: "Kalimantan Timur", center: [1.693, 116.419] },
-  "KU": { name: "Kalimantan Utara", center: [3.073, 116.041] },
-  "SA": { name: "Sulawesi Utara", center: [0.624, 123.975] },
-  "ST": { name: "Sulawesi Tengah", center: [-1.430, 121.445] },
-  "SN": { name: "Sulawesi Selatan", center: [-3.670, 119.974] },
-  "SG": { name: "Sulawesi Tenggara", center: [-4.145, 122.175] },
-  "GO": { name: "Gorontalo", center: [0.690, 122.447] },
-  "SR": { name: "Sulawesi Barat", center: [-2.844, 119.232] },
-  "MA": { name: "Maluku", center: [-3.239, 130.145] },
-  "MU": { name: "Maluku Utara", center: [1.571, 127.809] },
-  "PB": { name: "Papua Barat", center: [-1.336, 133.174] },
-  "PA": { name: "Papua", center: [-4.269, 138.080] },
+  "AC": { name: "Aceh", center: [3.682, 96.833] },
+  "SU": { name: "Sumatera Utara", center: [1.687, 98.759] },
+  "SB": { name: "Sumatera Barat", center: [-1.2, 100.227] },
+  "RI": { name: "Riau", center: [0.687, 102.271] },
+  "JA": { name: "Jambi", center: [-1.718, 102.767] },
+  "SS": { name: "Sumatera Selatan", center: [-3.309, 104.05] },
+  "BE": { name: "Bengkulu", center: [-3.863, 102.648] },
+  "LA": { name: "Lampung", center: [-4.928, 104.817] },
+  "BB": { name: "Kep. Bangka Belitung", center: [-2.519, 106.639] },
+  "KR": { name: "Kep. Riau", center: [1.401, 105.221] },
+  "JK": { name: "DKI Jakarta", center: [-6.184, 106.829] },
+  "JB": { name: "Jawa Barat", center: [-6.871, 107.637] },
+  "JT": { name: "Jawa Tengah", center: [-7.351, 110.115] },
+  "JI": { name: "Jawa Timur", center: [-7.573, 113.165] },
+  "YO": { name: "DI Yogyakarta", center: [-7.887, 110.448] },
+  "BT": { name: "Banten", center: [-6.487, 105.999] },
+  "BA": { name: "Bali", center: [-8.48, 115.163] },
+  "NB": { name: "Nusa Tenggara Barat", center: [-8.578, 117.674] },
+  "NT": { name: "Nusa Tenggara Timur", center: [-9.043, 122.409] },
+  "KB": { name: "Kalimantan Barat", center: [-0.262, 110.744] },
+  "KT": { name: "Kalimantan Tengah", center: [-1.382, 113.407] },
+  "KS": { name: "Kalimantan Selatan", center: [-2.963, 115.798] },
+  "KI": { name: "Kalimantan Timur", center: [0.306, 116.866] },
+  "KU": { name: "Kalimantan Utara", center: [3.184, 116.912] },
+  "SA": { name: "Sulawesi Utara", center: [2.052, 125.062] },
+  "ST": { name: "Sulawesi Tengah", center: [-0.92, 121.61] },
+  "SN": { name: "Sulawesi Selatan", center: [-4.8, 120.261] },
+  "SG": { name: "Sulawesi Tenggara", center: [-4.499, 122.489] },
+  "GO": { name: "Gorontalo", center: [0.699, 122.374] },
+  "SR": { name: "Sulawesi Barat", center: [-2.377, 119.335] },
+  "MA": { name: "Maluku", center: [-5.552, 130.706] },
+  "MU": { name: "Maluku Utara", center: [-0.138, 127.377] },
+  "PB": { name: "Papua Barat", center: [-2.03, 132.44] },
+  "PA": { name: "Papua", center: [-4.443, 137.569] },
 };
 
 // ==================== SIDEBAR NAV ====================
@@ -136,96 +136,26 @@ function App() {
   );
 }
 
-// ==================== PAGE: HOME (Interactive Map) ====================
+// ==================== PAGE: HOME (Interactive SVG Map) ====================
 function HomePage() {
   const [provinces, setProvinces] = useState([]);
   const [activeLayer, setActiveLayer] = useState('risk');
-  const mapRef = useRef(null);
-  const mapInstanceRef = useRef(null);
+  const [selectedProvince, setSelectedProvince] = useState(null);
 
   useEffect(() => {
     api('/geo-triage/provinces').then(setProvinces);
   }, []);
 
-  useEffect(() => {
-    if (!mapRef.current || mapInstanceRef.current) return;
-
-    const map = L.map(mapRef.current, {
-      center: [-2.5, 118],
-      zoom: 5,
-      minZoom: 4,
-      maxZoom: 10,
-      zoomControl: true,
-    });
-
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-    }).addTo(map);
-
-    mapInstanceRef.current = map;
-
-    return () => { map.remove(); mapInstanceRef.current = null; };
-  }, []);
-
-  useEffect(() => {
-    if (!mapInstanceRef.current || provinces.length === 0) return;
-    const map = mapInstanceRef.current;
-
-    // Clear existing markers
-    map.eachLayer(l => { if (l instanceof L.CircleMarker) map.removeLayer(l); });
-
-    provinces.forEach(p => {
-      const geo = INDONESIA_PROVINCES[p.province_code];
-      if (!geo) return;
-
-      let color, radius, value;
-      if (activeLayer === 'risk') {
-        color = p.risk_color;
-        radius = Math.max(8, Math.min(25, p.risk_score / 4));
-        value = p.risk_score;
-      } else if (activeLayer === 'aki') {
-        const akiNorm = Math.min(p.aki / 300, 1);
-        color = akiNorm > 0.6 ? '#dc2626' : akiNorm > 0.3 ? '#f97316' : '#22c55e';
-        radius = Math.max(8, akiNorm * 25);
-        value = p.aki;
-      } else if (activeLayer === 'thalasemia') {
-        const thalNorm = Math.min(p.kasus_thalasemia / 4255, 1);
-        color = thalNorm > 0.5 ? '#dc2626' : thalNorm > 0.2 ? '#eab308' : '#22c55e';
-        radius = Math.max(8, thalNorm * 25);
-        value = p.kasus_thalasemia;
-      } else {
-        const litNorm = p.indeks_literasi / 5;
-        color = litNorm < 0.4 ? '#dc2626' : litNorm < 0.7 ? '#eab308' : '#22c55e';
-        radius = Math.max(8, (1 - litNorm) * 25);
-        value = p.indeks_literasi;
-      }
-
-      const marker = L.circleMarker(geo.center, {
-        radius: radius,
-        fillColor: color,
-        color: color,
-        weight: 2,
-        opacity: 0.8,
-        fillOpacity: 0.4,
-      }).addTo(map);
-
-      marker.bindPopup(`
-        <div class="province-popup">
-          <h3>${p.province_name}</h3>
-          <div class="popup-stat"><span>Skor Risiko</span><strong>${p.risk_score}</strong></div>
-          <div class="popup-stat"><span>AKI (per 100rb)</span><strong>${p.aki}</strong></div>
-          <div class="popup-stat"><span>Rh- Populasi</span><strong>${p.populasi_rh_negatif_persen}%</strong></div>
-          <div class="popup-stat"><span>Defisit Stok Rh-</span><strong>${p.defisit_stok_rh_negatif}</strong></div>
-          <div class="popup-stat"><span>Kasus Thalasemia</span><strong>${p.kasus_thalasemia.toLocaleString()}</strong></div>
-          <div class="popup-stat"><span>Indeks Literasi</span><strong>${p.indeks_literasi}/5</strong></div>
-          <div class="popup-stat"><span>Jumlah Faskes</span><strong>${p.jumlah_faskes}</strong></div>
-          <div class="popup-stat"><span>Penduduk</span><strong>${p.jumlah_penduduk.toLocaleString()}</strong></div>
-        </div>
-      `);
-    });
-  }, [provinces, activeLayer]);
-
   const highRisk = provinces.filter(p => p.risk_score >= 50);
+  const selected = provinces.find(p => p.province_code === selectedProvince);
+
+  const SOURCES = [
+    { label: 'BPS — Angka Kematian Ibu (AKI)', url: 'https://www.bps.go.id/id/statistics-table/2/MTczNyMy/angka-kematian-ibu-melahirkan-per-100-000-kelahiran-hidup.html' },
+    { label: 'Kemenkes — Data Thalasemia Indonesia', url: 'https://www.kemkes.go.id/article/view/23010400004/data-dan-informasi-profil-kesehatan-indonesia-2022.html' },
+    { label: 'WHO — Maternal Mortality Ratio', url: 'https://www.who.int/data/gho/data/indicators/indicator-details/GHO/maternal-mortality-ratio-(per-100-000-live-births)' },
+    { label: 'Kemenkes — Profil Faskes (Puskesmas)', url: 'https://www.kemkes.go.id/article/view/23123100005/profil-kementerian-kesehatan-ri-tahun-2023.html' },
+    { label: 'BPS — Jumlah Penduduk per Provinsi', url: 'https://www.bps.go.id/id/statistics-table/2/MTk2IzI=/projected-population-by-province-2020-2025.html' },
+  ];
 
   return (
     <div>
@@ -248,7 +178,12 @@ function HomePage() {
           ))}
         </div>
 
-        <div className="map-container" ref={mapRef}></div>
+        <IndonesiaSVGMap
+          provinces={provinces}
+          activeLayer={activeLayer}
+          selectedProvince={selectedProvince}
+          onSelectProvince={(p) => setSelectedProvince(p.province_code === selectedProvince ? null : p.province_code)}
+        />
 
         <div className="map-legend" style={{marginTop: 12}}>
           <div className="map-legend-item"><div className="map-legend-color" style={{background:'#22c55e'}}></div> Risiko Rendah</div>
@@ -257,15 +192,78 @@ function HomePage() {
           <div className="map-legend-item"><div className="map-legend-color" style={{background:'#dc2626'}}></div> Risiko Sangat Tinggi</div>
         </div>
 
+        {/* Selected Province Detail */}
+        {selected && (
+          <div style={{marginTop:16, padding:16, background:'var(--bg-card)', borderRadius:12, border:`1px solid ${selected.risk_color}40`}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
+              <h3 style={{margin:0,color:'#fff',fontSize:16}}>📍 {selected.province_name}</h3>
+              <span style={{padding:'4px 12px',borderRadius:20,background:selected.risk_color+'22',color:selected.risk_color,fontSize:12,fontWeight:600}}>
+                Risiko: {selected.risk_score}
+              </span>
+            </div>
+            <div className="stats-grid" style={{gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))'}}>
+              <div className="stat-card">
+                <div className="stat-value" style={{color:selected.risk_color}}>{selected.risk_score}</div>
+                <div className="stat-label">Skor Risiko</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{selected.aki}</div>
+                <div className="stat-label">AKI (per 100rb)</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{selected.kasus_thalasemia?.toLocaleString()}</div>
+                <div className="stat-label">Kasus Thalasemia</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{selected.populasi_rh_negatif_persen}%</div>
+                <div className="stat-label">Rh- Populasi</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{selected.defisit_stok_rh_negatif}</div>
+                <div className="stat-label">Defisit Stok Rh-</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{selected.indeks_literasi}/5</div>
+                <div className="stat-label">Indeks Literasi</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{selected.jumlah_faskes}</div>
+                <div className="stat-label">Faskes</div>
+              </div>
+              <div className="stat-card">
+                <div className="stat-value">{selected.jumlah_penduduk?.toLocaleString()}</div>
+                <div className="stat-label">Penduduk</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={{marginTop: 24}}>
           <h3 className="card-title">⚠️ Provinsi Risiko Tinggi ({highRisk.length})</h3>
           <div className="stats-grid">
             {highRisk.slice(0, 8).map(p => (
-              <div key={p.province_code} className="stat-card" style={{borderLeft: `3px solid ${p.risk_color}`}}>
+              <div key={p.province_code} className="stat-card" style={{borderLeft: `3px solid ${p.risk_color}`, cursor:'pointer'}}
+                   onClick={() => setSelectedProvince(p.province_code === selectedProvince ? null : p.province_code)}>
                 <div className="stat-label">{p.province_name}</div>
                 <div className="stat-value" style={{color: p.risk_color}}>{p.risk_score}</div>
                 <div style={{fontSize:'0.75rem',color:'var(--gray-400)'}}>AKI: {p.aki} · Thal: {p.kasus_thalasemia}</div>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sumber Data */}
+        <div style={{marginTop:24, padding:16, background:'var(--bg-card)', borderRadius:12, border:'1px solid rgba(20,184,166,0.1)'}}>
+          <h3 className="card-title" style={{marginBottom:8}}>📚 Sumber Data Real</h3>
+          <p style={{color:'var(--gray-400)',fontSize:12,marginBottom:10}}>Data bersumber dari lembaga pemerintah & organisasi internasional resmi:</p>
+          <div style={{display:'flex',flexDirection:'column',gap:6}}>
+            {SOURCES.map((s,i) => (
+              <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+                 style={{color:'var(--primary-400)',fontSize:12,textDecoration:'none',padding:'6px 10px',borderRadius:6,background:'rgba(20,184,166,0.06)',border:'1px solid rgba(20,184,166,0.1)',transition:'background 0.2s'}}
+                 onMouseEnter={e=>e.target.style.background='rgba(20,184,166,0.12)'}
+                 onMouseLeave={e=>e.target.style.background='rgba(20,184,166,0.06)'}>
+                🔗 {s.label}
+              </a>
             ))}
           </div>
         </div>
