@@ -15,6 +15,7 @@ use App\Http\Controllers\CostSimulatorController;
 use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\EpidemiologiController;
 use App\Http\Controllers\CatinProfileController;
+use App\Http\Controllers\VitaminDetectionController;
 
 // Chatbot (Fitur 1)
 Route::post('/chat', [ChatController::class, 'chat']);
@@ -71,3 +72,11 @@ Route::get('/epidemiologi/dashboard', [EpidemiologiController::class, 'dashboard
 Route::post('/catin-profile', [CatinProfileController::class, 'store']);
 Route::get('/catin-profile/{id}', [CatinProfileController::class, 'show']);
 Route::put('/catin-profile/{id}', [CatinProfileController::class, 'update']);
+
+// ============================================================
+// Deteksi Vitamin & Gizi Anak
+// ============================================================
+Route::post('/vitamin-detection/analyze-photo', [VitaminDetectionController::class, 'analyzePhoto']);
+Route::post('/vitamin-detection/submit',         [VitaminDetectionController::class, 'submit']);
+Route::get('/vitamin-detection',                 [VitaminDetectionController::class, 'index']);
+Route::get('/vitamin-detection/{id}',            [VitaminDetectionController::class, 'show']);
