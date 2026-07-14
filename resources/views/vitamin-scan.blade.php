@@ -815,6 +815,12 @@ circle.ring-fill {
 
         <div class="camera-wrapper" id="cameraWrapper">
           <div class="scanner-overlay" id="scannerOverlay"></div>
+          
+          <!-- Quality warning toast -->
+          <div id="qualityToast" class="hidden" style="position: absolute; top: 16px; z-index: 35; background: rgba(239, 68, 68, 0.9); padding: 8px 16px; border-radius: 100px; font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; gap: 8px; border: 1px solid rgba(255,255,255,0.2); backdrop-filter: blur(8px); box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+            <span id="qualityToastText">Foto Terlalu Gelap!</span>
+          </div>
+
           <video id="videoFeed" autoplay playsinline muted></video>
           <canvas id="snapshotCanvas"></canvas>
           
@@ -1364,11 +1370,129 @@ function captureSnapshot() {
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
   context.setTransform(1, 0, 0, 1, 0, 0); // reset scale
 
+  // Assess photo quality & apply auto white-balance color calibration
+  const quality = assessQualityAndCalibrate(canvas);
+  
+  const toast = document.getElementById('qualityToast');
+  const toastText = document.getElementById('qualityToastText');
+
+  if (quality.status === 'fail') {
+    toastText.textContent = quality.message;
+    toast.classList.remove('hidden');
+    
+    // Auto-hide warning after 4.5 seconds
+    setTimeout(() => {
+      toast.classList.add('hidden');
+    }, 4500);
+
+    // If extremely poor quality, alert user and do not accept
+    alert(quality.message + "\n\nFoto dibatalkan. Silakan ambil ulang dengan pencahayaan dan fokus yang lebih baik.");
+    retakePhoto();
+    return;
+  } else {
+    toast.classList.add('hidden');
+  }
+
   const base64Data = canvas.toDataURL('image/jpeg');
   state.photos[state.currentScanArea] = base64Data;
 
   showPreview(base64Data);
 }
+
+// Client-side image quality scanner & Gray-world white balance calibrator
+function assessQualityAndCalibrate(canvas) {
+  const context = canvas.getContext('2d');
+  const width = canvas.width;
+  const height = canvas.height;
+  
+  // Downsample/sample data for performance
+  const imgData = context.getImageData(0, 0, width, height);
+  const data = imgData.data;
+
+  let totalLuminance = 0;
+  let rSum = 0, gSum = 0, bSum = 0;
+  const totalPixels = data.length / 4;
+
+  // 1. Calculate Average Luminance (brightness) and RGB sums
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i+1];
+    const b = data[i+2];
+
+    rSum += r;
+    gSum += g;
+    bSum += b;
+
+    // Luminance ITU-R BT.601 formula
+    totalLuminance += (0.299 * r) + (0.587 * g) + (0.114 * b);
+  }
+
+  const avgLuminance = totalLuminance / totalPixels;
+  const avgR = rSum / totalPixels;
+  const avgG = gSum / totalPixels;
+  const avgB = bSum / totalPixels;
+
+  // 2. High-frequency Edge/Detail detection for Blur Check (simulated Laplacian)
+  let edgeSum = 0;
+  const step = 8; // Sample every 8th pixel
+  let sampleCount = 0;
+
+  for (let y = step; y < height - step; y += step) {
+    for (let x = step; x < width - step; x += step) {
+      const idx = (y * width + x) * 4;
+      const val = (0.299 * data[idx]) + (0.587 * data[idx+1]) + (0.114 * data[idx+2]);
+
+      // Right pixel neighbor
+      const idxR = (y * width + (x + 1)) * 4;
+      const valR = (0.299 * data[idxR]) + (0.587 * data[idxR+1]) + (0.114 * data[idxR+2]);
+
+      // Bottom pixel neighbor
+      const idxB = ((y + 1) * width + x) * 4;
+      const valB = (0.299 * data[idxB]) + (0.587 * data[idxB+1]) + (0.114 * data[idxB+2]);
+
+      const dx = valR - val;
+      const dy = valB - val;
+      edgeSum += Math.sqrt(dx * dx + dy * dy);
+      sampleCount++;
+    }
+  }
+
+  const avgEdge = edgeSum / sampleCount;
+
+  let status = 'good';
+  let message = '';
+
+  // Quality Validation Checks
+  if (avgLuminance < 60) {
+    status = 'fail';
+    message = '⚠️ Kualitas Rendah: Foto Terlalu Gelap!';
+  } else if (avgLuminance > 240) {
+    status = 'fail';
+    message = '⚠️ Kualitas Rendah: Foto Terlalu Silau!';
+  } else if (avgEdge < 5.2) {
+    status = 'fail';
+    message = '⚠️ Kualitas Rendah: Foto Terlalu Blur / Tidak Fokus!';
+  }
+
+  // 3. Gray World Color Calibration (Normalize white balance color cast)
+  if (status === 'good') {
+    const targetGray = (avgR + avgG + avgB) / 3;
+    const scaleR = targetGray / (avgR || 1);
+    const scaleG = targetGray / (avgG || 1);
+    const scaleB = targetGray / (avgB || 1);
+
+    // Recalibrate color channels
+    for (let i = 0; i < data.length; i += 4) {
+      data[i]     = Math.min(255, Math.max(0, data[i] * scaleR));
+      data[i+1]   = Math.min(255, Math.max(0, data[i+1] * scaleG));
+      data[i+2]   = Math.min(255, Math.max(0, data[i+2] * scaleB));
+    }
+    context.putImageData(imgData, 0, 0);
+  }
+
+  return { status, message };
+}
+
 
 function showPreview(src) {
   const preview = document.getElementById('previewContainer');
