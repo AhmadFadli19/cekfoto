@@ -290,6 +290,28 @@ body {
 .analyze-btn-small:hover { background: #4299e1; transform: scale(1.05); }
 .analyze-btn-small:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
+/* ========== DUAL ACTION BUTTONS ========== */
+.dual-actions {
+  display: flex; gap: 8px; width: 100%; padding: 0 8px;
+  position: absolute; bottom: 12px; left: 0; z-index: 5;
+}
+.dual-actions .action-btn {
+  flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 10px 6px; border-radius: 12px; border: none;
+  font-family: inherit; font-size: 0.78rem; font-weight: 700;
+  cursor: pointer; transition: all 0.2s ease;
+}
+.action-btn-file {
+  background: rgba(255,255,255,0.1); color: var(--text-secondary);
+  border: 1px solid rgba(255,255,255,0.15);
+}
+.action-btn-file:hover { background: rgba(255,255,255,0.18); color: #fff; }
+.action-btn-camera {
+  background: linear-gradient(135deg, #3b82f6, #6366f1); color: #fff;
+  box-shadow: 0 4px 14px rgba(99,102,241,0.35);
+}
+.action-btn-camera:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(99,102,241,0.45); }
+
 /* ========== ANALYSIS RESULT CARD ========== */
 .analysis-result {
   margin-top: 16px;
@@ -516,6 +538,64 @@ body {
   font-weight: 600; color: var(--green); margin-top: 12px;
 }
 
+/* ========== CAMERA MODAL ========== */
+.camera-overlay {
+  display: none; position: fixed; inset: 0; z-index: 9999;
+  background: rgba(0,0,0,0.95); backdrop-filter: blur(8px);
+  flex-direction: column; align-items: center; justify-content: center;
+  gap: 16px; padding: 20px;
+}
+.camera-overlay.show { display: flex; }
+.camera-video-wrap {
+  position: relative; width: 100%; max-width: 480px; aspect-ratio: 3/4;
+  border-radius: var(--radius-lg); overflow: hidden;
+  background: #000; border: 2px solid rgba(255,255,255,0.1);
+}
+.camera-video-wrap video {
+  width: 100%; height: 100%; object-fit: cover;
+  transform: scaleX(-1);
+}
+.camera-close-btn {
+  position: absolute; top: 12px; right: 12px; z-index: 10;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2);
+  color: #fff; font-size: 1.3rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.2s;
+}
+.camera-close-btn:hover { background: rgba(248,113,113,0.8); }
+.camera-label {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+  border-radius: 100px; padding: 8px 20px;
+  font-size: 0.85rem; font-weight: 700; color: #fff;
+  white-space: nowrap; pointer-events: none;
+}
+.camera-capture-btn {
+  width: 72px; height: 72px; border-radius: 50%;
+  background: transparent; border: 4px solid #fff;
+  cursor: pointer; position: relative; transition: transform 0.15s;
+  flex-shrink: 0;
+}
+.camera-capture-btn::after {
+  content: ''; position: absolute; inset: 6px;
+  border-radius: 50%; background: #fff;
+  transition: transform 0.15s, background 0.15s;
+}
+.camera-capture-btn:hover { transform: scale(1.08); }
+.camera-capture-btn:active::after { transform: scale(0.85); background: var(--blue); }
+.camera-hint {
+  font-size: 0.82rem; color: var(--text-secondary); text-align: center;
+}
+.camera-switch-btn {
+  position: absolute; top: 12px; left: 12px; z-index: 10;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(0,0,0,0.6); border: 1px solid rgba(255,255,255,0.2);
+  color: #fff; font-size: 1.1rem; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.camera-switch-btn:hover { background: rgba(99,179,237,0.6); }
+
 /* ========== RESPONSIVE ========== */
 @media (max-width: 640px) {
   .photo-grid { grid-template-columns: 1fr; }
@@ -535,6 +615,18 @@ body {
   <div class="orb orb-1"></div>
   <div class="orb orb-2"></div>
   <div class="orb orb-3"></div>
+</div>
+
+<!-- Camera Modal -->
+<div class="camera-overlay" id="cameraOverlay">
+  <div class="camera-video-wrap">
+    <button class="camera-close-btn" onclick="closeCamera()" aria-label="Tutup kamera">&times;</button>
+    <button class="camera-switch-btn" onclick="switchCamera()" aria-label="Ganti kamera">&#x21BB;</button>
+    <video id="cameraVideo" autoplay playsinline muted></video>
+    <div class="camera-label" id="cameraLabel">Foto Mata</div>
+  </div>
+  <button class="camera-capture-btn" id="cameraCaptureBtn" onclick="capturePhoto()" aria-label="Ambil foto"></button>
+  <div class="camera-hint">Tekan tombol atau sentuh untuk mengambil foto</div>
 </div>
 
 <!-- Loading Overlay -->
@@ -646,7 +738,17 @@ body {
           <div id="placeholder-mata">
             <div class="upload-icon">👁️</div>
             <div class="upload-label">Foto Mata</div>
-            <div class="upload-hint">JPG/PNG, maks. 5MB<br>Pastikan area mata terlihat jelas</div>
+            <div class="upload-hint">Pastikan area mata terlihat jelas</div>
+          </div>
+          <div class="dual-actions" id="actions-mata">
+            <button type="button" class="action-btn action-btn-file" onclick="event.stopPropagation();document.getElementById('foto-mata').click()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Pilih File
+            </button>
+            <button type="button" class="action-btn action-btn-camera" onclick="event.stopPropagation();openCamera('mata')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              Buka Kamera
+            </button>
           </div>
           <button class="analyze-btn-small" id="analyze-btn-mata" onclick="analyzePhoto('mata')" disabled>Analisis AI</button>
         </div>
@@ -664,7 +766,17 @@ body {
           <div id="placeholder-kulit">
             <div class="upload-icon">🖐️</div>
             <div class="upload-label">Foto Kulit</div>
-            <div class="upload-hint">JPG/PNG, maks. 5MB<br>Telapak atau lengan bawah</div>
+            <div class="upload-hint">Telapak tangan atau lengan bawah</div>
+          </div>
+          <div class="dual-actions" id="actions-kulit">
+            <button type="button" class="action-btn action-btn-file" onclick="event.stopPropagation();document.getElementById('foto-kulit').click()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Pilih File
+            </button>
+            <button type="button" class="action-btn action-btn-camera" onclick="event.stopPropagation();openCamera('kulit')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              Buka Kamera
+            </button>
           </div>
           <button class="analyze-btn-small" id="analyze-btn-kulit" onclick="analyzePhoto('kulit')" disabled>Analisis AI</button>
         </div>
@@ -682,7 +794,17 @@ body {
           <div id="placeholder-kuku">
             <div class="upload-icon">💅</div>
             <div class="upload-label">Foto Kuku</div>
-            <div class="upload-hint">JPG/PNG, maks. 5MB<br>Jari tangan, pencahayaan terang</div>
+            <div class="upload-hint">Jari tangan, pencahayaan terang</div>
+          </div>
+          <div class="dual-actions" id="actions-kuku">
+            <button type="button" class="action-btn action-btn-file" onclick="event.stopPropagation();document.getElementById('foto-kuku').click()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Pilih File
+            </button>
+            <button type="button" class="action-btn action-btn-camera" onclick="event.stopPropagation();openCamera('kuku')">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              Buka Kamera
+            </button>
           </div>
           <button class="analyze-btn-small" id="analyze-btn-kuku" onclick="analyzePhoto('kuku')" disabled>Analisis AI</button>
         </div>
@@ -1032,6 +1154,79 @@ function handlePhotoChange(bagian, input) {
   if (input.files[0]) setPhoto(bagian, input.files[0]);
 }
 
+// ==================== CAMERA ====================
+let cameraStream = null;
+let cameraFacing = 'environment';
+let cameraTarget = 'mata';
+const cameraLabels = { mata: '👁️ Foto Mata', kulit: '🖐️ Foto Kulit', kuku: '💅 Foto Kuku' };
+
+async function openCamera(bagian) {
+  cameraTarget = bagian;
+  document.getElementById('cameraLabel').textContent = cameraLabels[bagian] || 'Ambil Foto';
+  document.getElementById('cameraOverlay').classList.add('show');
+  await startCamera();
+}
+
+async function startCamera() {
+  stopCamera();
+  try {
+    const constraints = {
+      video: {
+        facingMode: cameraFacing,
+        width: { ideal: 1920 },
+        height: { ideal: 1080 }
+      },
+      audio: false
+    };
+    cameraStream = await navigator.mediaDevices.getUserMedia(constraints);
+    document.getElementById('cameraVideo').srcObject = cameraStream;
+  } catch (err) {
+    console.error('Camera error:', err);
+    alert('Tidak bisa mengakses kamera. Pastikan izin kamera diberikan.');
+    closeCamera();
+  }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  const video = document.getElementById('cameraVideo');
+  video.srcObject = null;
+}
+
+function closeCamera() {
+  stopCamera();
+  document.getElementById('cameraOverlay').classList.remove('show');
+}
+
+function switchCamera() {
+  cameraFacing = cameraFacing === 'environment' ? 'user' : 'environment';
+  startCamera();
+}
+
+function capturePhoto() {
+  const video = document.getElementById('cameraVideo');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+
+  if (cameraFacing === 'user') {
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+  }
+  ctx.drawImage(video, 0, 0);
+
+  canvas.toBlob(function(blob) {
+    if (!blob) return;
+    const file = new File([blob], `kamera-${cameraTarget}-${Date.now()}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
+    setPhoto(cameraTarget, file);
+    closeCamera();
+  }, 'image/jpeg', 0.95);
+}
+
 function setPhoto(bagian, file) {
   state.photos[bagian] = file;
   const reader = new FileReader();
@@ -1039,10 +1234,10 @@ function setPhoto(bagian, file) {
     document.getElementById(`preview-img-${bagian}`).src = e.target.result;
     document.getElementById(`preview-${bagian}`).style.display = 'block';
     document.getElementById(`placeholder-${bagian}`).style.display = 'none';
+    document.getElementById(`actions-${bagian}`).style.display = 'none';
     document.getElementById(`card-${bagian}`).classList.add('uploaded');
     document.getElementById(`badge-${bagian}`).textContent = '✓ Siap dianalisis';
     document.getElementById(`analyze-btn-${bagian}`).disabled = false;
-    // Reset analysis
     state.analyses[bagian] = '';
     const resEl = document.getElementById(`result-${bagian}`);
     resEl.classList.remove('show');
@@ -1074,7 +1269,18 @@ async function analyzePhoto(bagian) {
       headers: { 'X-CSRF-TOKEN': getCsrf(), 'Accept': 'application/json' },
       body: formData,
     });
-    const data = await resp.json();
+
+    let data;
+    try {
+      data = await resp.json();
+    } catch (_) {
+      throw new Error(`Server error (HTTP ${resp.status}). Coba lagi nanti.`);
+    }
+
+    if (!resp.ok) {
+      const msg = data?.message || data?.errors?.foto?.[0] || `Error HTTP ${resp.status}`;
+      throw new Error(msg);
+    }
 
     if (data.success) {
       state.analyses[bagian] = data.analisis;
@@ -1088,10 +1294,11 @@ async function analyzePhoto(bagian) {
       document.getElementById(`badge-${bagian}`).textContent = '✓ Teranalisis';
       btn.textContent = '✓ Selesai';
     } else {
-      throw new Error('Analisis gagal');
+      throw new Error(data.message || 'Analisis gagal dari server.');
     }
   } catch (err) {
-    alert('Gagal menganalisis foto. Pastikan API key valid dan coba lagi.');
+    const msg = err.message || 'Terjadi kesalahan tidak diketahui.';
+    alert('Gagal menganalisis foto: ' + msg);
     btn.disabled = false;
     btn.textContent = 'Analisis AI';
     card.classList.remove('analyzing');
@@ -1259,6 +1466,7 @@ function resetAll() {
     document.getElementById(`card-${b}`).className = 'photo-upload-card';
     document.getElementById(`preview-${b}`).style.display = 'none';
     document.getElementById(`placeholder-${b}`).style.display = '';
+    document.getElementById(`actions-${b}`).style.display = '';
     document.getElementById(`result-${b}`).classList.remove('show');
     document.getElementById(`analyze-btn-${b}`).disabled = true;
     document.getElementById(`analyze-btn-${b}`).textContent = 'Analisis AI';
@@ -1280,6 +1488,13 @@ function resetAll() {
 
 // Fetch CSRF cookie on load
 fetch('/sanctum/csrf-cookie').catch(() => {});
+
+// Close camera on Escape
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('cameraOverlay').classList.contains('show')) {
+    closeCamera();
+  }
+});
 </script>
 </body>
 </html>

@@ -86,7 +86,7 @@ Route::get('/vitamin-detection/{id}',            [VitaminDetectionController::cl
 // Scan & Deep Learning Deteksi Gizi/Vitamin Anak
 // ============================================================
 Route::post('/vitamin-scan/analyze-single',       [VitaminScanController::class, 'analyzeSingle']);
-Route::post('/vitamin-scan/analyze-full',         [VitaminScanController::class, 'analyzeFull']);
+Route::post('/vitamin-scan/an alyze-full',         [VitaminScanController::class, 'analyzeFull']);
 Route::get('/vitamin-scan/history/{childName}',   [VitaminScanController::class, 'history']);
 Route::post('/vitamin-scan/{id}/compare',         [VitaminScanController::class, 'compare']);
 Route::get('/vitamin-scan/{id}',                  [VitaminScanController::class, 'show']);
