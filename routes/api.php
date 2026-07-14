@@ -16,6 +16,7 @@ use App\Http\Controllers\CertificateController;
 use App\Http\Controllers\EpidemiologiController;
 use App\Http\Controllers\CatinProfileController;
 use App\Http\Controllers\VitaminDetectionController;
+use App\Http\Controllers\VitaminScanController;
 
 // Chatbot (Fitur 1)
 Route::post('/chat', [ChatController::class, 'chat']);
@@ -80,3 +81,12 @@ Route::post('/vitamin-detection/analyze-photo', [VitaminDetectionController::cla
 Route::post('/vitamin-detection/submit',         [VitaminDetectionController::class, 'submit']);
 Route::get('/vitamin-detection',                 [VitaminDetectionController::class, 'index']);
 Route::get('/vitamin-detection/{id}',            [VitaminDetectionController::class, 'show']);
+
+// ============================================================
+// Scan & Deep Learning Deteksi Gizi/Vitamin Anak
+// ============================================================
+Route::post('/vitamin-scan/analyze-single',       [VitaminScanController::class, 'analyzeSingle']);
+Route::post('/vitamin-scan/analyze-full',         [VitaminScanController::class, 'analyzeFull']);
+Route::get('/vitamin-scan/history/{childName}',   [VitaminScanController::class, 'history']);
+Route::post('/vitamin-scan/{id}/compare',         [VitaminScanController::class, 'compare']);
+Route::get('/vitamin-scan/{id}',                  [VitaminScanController::class, 'show']);

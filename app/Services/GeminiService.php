@@ -343,5 +343,375 @@ class GeminiService
             0.15
         );
     }
+
+    // =========================================================================
+    //  VITAMIN SCAN — STRUCTURED AI ANALYSIS (DEEP LEARNING STYLE)
+    // =========================================================================
+
+    /**
+     * Analyze a photo with Gemini Vision and return STRUCTURED JSON result.
+     * This is the "deep learning" layer — using Gemini's vision model as
+     * the classification engine (analogous to HydroCare's ResNet-50).
+     *
+     * @param  string $base64Image  Base64-encoded image data
+     * @param  string $mimeType     Image MIME type (image/jpeg, image/png, etc.)
+     * @param  string $bagian       'mata' | 'kulit' | 'kuku'
+     * @return array|null           Structured prediction result
+     */
+    public function analyzeImageStructured(string $base64Image, string $mimeType, string $bagian): ?array
+    {
+        if (empty($this->apiKey)) {
+            return ['error' => 'GEMINI_API_KEY belum diatur.'];
+        }
+
+        // Load knowledge base for this area
+        $signs = config("vitamin_deficiency_signs.{$bagian}", []);
+        $tandaRef = '';
+        if (!empty($signs['tanda_visual'])) {
+            foreach ($signs['tanda_visual'] as $tv) {
+                $indikasiStr = implode(', ', $tv['indikasi']);
+                $tandaRef .= "- {$tv['tanda']}: {$tv['deskripsi']} → Indikasi: {$indikasiStr}\n";
+            }
+        }
+
+        $bagianLabel = $signs['label'] ?? ucfirst($bagian);
+
+        $systemPrompt = <<<PROMPT
+Kamu adalah sistem AI computer vision medis (deep learning classifier) yang menganalisis foto {$bagianLabel} anak untuk mendeteksi tanda-tanda kekurangan vitamin dan nutrisi.
+
+REFERENSI TANDA VISUAL YANG HARUS DICEK:
+{$tandaRef}
+
+INSTRUKSI PENTING:
+1. Analisis foto dengan teliti, identifikasi SEMUA tanda visual yang terlihat.
+2. Untuk setiap tanda, tentukan indikasi defisiensi dan tingkat keyakinan.
+3. Jika ada tanda yang mengarah ke kondisi serius (kuning, sangat cekung, koilonikia berat), tandai perlu_rujuk = true.
+4. Ini adalah SKRINING AWAL, bukan diagnosis. Gunakan kata "terindikasi", "kemungkinan", BUKAN "didiagnosis".
+
+WAJIB JAWAB DALAM FORMAT JSON BERIKUT (tanpa markdown code block, langsung JSON):
+{
+  "area": "{$bagian}",
+  "status": "normal" | "terindikasi",
+  "temuan_visual": [
+    {
+      "tanda": "nama tanda yang terdeteksi",
+      "deskripsi": "apa yang terlihat pada foto",
+      "area_highlight": "deskripsi lokasi pada foto (misal: kelopak mata bawah)"
+    }
+  ],
+  "indikasi_defisiensi": [
+    {
+      "vitamin_mineral": "nama vitamin/mineral",
+      "alasan": "alasan singkat berdasarkan tanda visual",
+      "keyakinan": "rendah" | "sedang" | "tinggi"
+    }
+  ],
+  "confidence_score": 0.0-1.0,
+  "perlu_rujuk": false,
+  "alasan_rujuk": "alasan jika perlu_rujuk true, kosong jika false",
+  "penjelasan_awam": "penjelasan singkat 1-2 kalimat untuk orang tua dalam bahasa sederhana"
+}
+
+Jika foto normal / tidak ada tanda kekurangan, kembalikan status "normal" dengan temuan_visual dan indikasi_defisiensi kosong, confidence_score tinggi.
+PROMPT;
+
+        $body = [
+            'contents' => [[
+                'role'  => 'user',
+                'parts' => [
+                    ['text' => "Analisis foto {$bagianLabel} anak ini untuk deteksi kekurangan vitamin/nutrisi:"],
+                    [
+                        'inlineData' => [
+                            'mimeType' => $mimeType,
+                            'data'     => $base64Image,
+                        ],
+                    ],
+                ],
+            ]],
+            'systemInstruction' => [
+                'parts' => [['text' => $systemPrompt]],
+            ],
+            'generationConfig' => [
+                'temperature'    => 0.05,
+                'responseMimeType' => 'application/json',
+            ],
+        ];
+
+        try {
+            $response = $this->callWithFallback($body, 120);
+
+            if ($response === null || $response->failed()) {
+                $status = $response ? $response->status() : 500;
+                Log::error('Gemini Structured Vision error', [
+                    'bagian' => $bagian,
+                    'status' => $status,
+                    'body'   => $response ? $response->body() : 'No response',
+                ]);
+                return [
+                    'error'  => true,
+                    'status' => $status,
+                    'message' => $status === 429
+                        ? 'AI sedang sibuk. Tunggu 1-2 menit lalu coba lagi.'
+                        : 'Gagal menganalisis foto. Silakan coba lagi.',
+                ];
+            }
+
+            $rawText = $response->json('candidates.0.content.parts.0.text') ?? '';
+            // Clean any markdown code fences if present
+            $rawText = preg_replace('/^```(?:json)?\s*/i', '', trim($rawText));
+            $rawText = preg_replace('/\s*```$/', '', $rawText);
+
+            $parsed = json_decode($rawText, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::warning('Gemini structured output not valid JSON', [
+                    'bagian'  => $bagian,
+                    'raw'     => substr($rawText, 0, 500),
+                ]);
+                // Return a fallback structured result
+                return [
+                    'area'                 => $bagian,
+                    'status'               => 'terindikasi',
+                    'temuan_visual'        => [],
+                    'indikasi_defisiensi'  => [],
+                    'confidence_score'     => 0.5,
+                    'perlu_rujuk'          => false,
+                    'alasan_rujuk'         => '',
+                    'penjelasan_awam'      => $rawText,
+                    'raw_response'         => true,
+                ];
+            }
+
+            return $parsed;
+        } catch (\Exception $e) {
+            Log::error('Gemini Structured Vision exception', ['message' => $e->getMessage()]);
+            return [
+                'error'   => true,
+                'message' => 'Terjadi kesalahan saat menganalisis foto.',
+            ];
+        }
+    }
+
+    /**
+     * Compare before/after photos using Gemini Vision.
+     *
+     * @param  string $base64Before  Base64 of the initial photo
+     * @param  string $base64After   Base64 of the follow-up photo
+     * @param  string $mimeType      Image MIME type
+     * @param  string $bagian        'mata' | 'kulit' | 'kuku'
+     * @param  array  $previousResult  Previous structured analysis result
+     * @return array|null
+     */
+    public function compareBeforeAfter(
+        string $base64Before,
+        string $base64After,
+        string $mimeType,
+        string $bagian,
+        array  $previousResult = []
+    ): ?array {
+        if (empty($this->apiKey)) {
+            return ['error' => 'GEMINI_API_KEY belum diatur.'];
+        }
+
+        $prevSummary = json_encode($previousResult, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        $systemPrompt = <<<PROMPT
+Kamu adalah sistem AI medis yang membandingkan 2 foto {$bagian} anak: SEBELUM (foto awal saat skrining) dan SESUDAH (foto follow-up setelah pemberian bantuan gizi).
+
+HASIL ANALISIS AWAL:
+{$prevSummary}
+
+TUGAS:
+Bandingkan kedua foto dan tentukan apakah kondisi MEMBAIK, BELUM_MEMBAIK, atau MEMBURUK.
+
+WAJIB JAWAB DALAM FORMAT JSON (tanpa markdown code block):
+{
+  "status_perbandingan": "membaik" | "belum_membaik" | "memburuk",
+  "perubahan_visual": [
+    {
+      "aspek": "aspek yang berubah (misal: warna konjungtiva)",
+      "sebelum": "kondisi di foto sebelum",
+      "sesudah": "kondisi di foto sesudah",
+      "arah": "membaik" | "tetap" | "memburuk"
+    }
+  ],
+  "confidence_score": 0.0-1.0,
+  "kesimpulan": "penjelasan singkat untuk orang tua",
+  "rekomendasi_lanjutan": "saran tindak lanjut"
+}
+PROMPT;
+
+        $body = [
+            'contents' => [[
+                'role'  => 'user',
+                'parts' => [
+                    ['text' => "Foto SEBELUM ({$bagian}):"],
+                    ['inlineData' => ['mimeType' => $mimeType, 'data' => $base64Before]],
+                    ['text' => "Foto SESUDAH ({$bagian}):"],
+                    ['inlineData' => ['mimeType' => $mimeType, 'data' => $base64After]],
+                    ['text' => 'Bandingkan kedua foto ini dan tentukan perkembangan kondisi anak.'],
+                ],
+            ]],
+            'systemInstruction' => [
+                'parts' => [['text' => $systemPrompt]],
+            ],
+            'generationConfig' => [
+                'temperature'      => 0.05,
+                'responseMimeType' => 'application/json',
+            ],
+        ];
+
+        try {
+            $response = $this->callWithFallback($body, 120);
+
+            if ($response === null || $response->failed()) {
+                return ['error' => true, 'message' => 'Gagal membandingkan foto.'];
+            }
+
+            $rawText = $response->json('candidates.0.content.parts.0.text') ?? '';
+            $rawText = preg_replace('/^```(?:json)?\s*/i', '', trim($rawText));
+            $rawText = preg_replace('/\s*```$/', '', $rawText);
+
+            $parsed = json_decode($rawText, true);
+            return json_last_error() === JSON_ERROR_NONE ? $parsed : [
+                'status_perbandingan' => 'belum_membaik',
+                'kesimpulan'          => $rawText,
+                'raw_response'        => true,
+            ];
+        } catch (\Exception $e) {
+            Log::error('Gemini Compare exception', ['message' => $e->getMessage()]);
+            return ['error' => true, 'message' => 'Terjadi kesalahan saat membandingkan foto.'];
+        }
+    }
+
+    /**
+     * Generate a combined/cross-correlated report from all area analyses.
+     * This is the "Gemini fusion" layer that makes the system smarter than
+     * analyzing each area independently.
+     *
+     * @param  array $hasilMata   Structured result from eye analysis
+     * @param  array $hasilKulit  Structured result from skin analysis
+     * @param  array $hasilKuku   Structured result from nail analysis
+     * @param  array $kuesioner   Questionnaire answers (optional)
+     * @return array|null
+     */
+    public function generateCombinedReport(
+        array $hasilMata  = [],
+        array $hasilKulit = [],
+        array $hasilKuku  = [],
+        array $kuesioner  = []
+    ): ?array {
+        $dataGabungan = json_encode([
+            'analisis_mata'  => $hasilMata,
+            'analisis_kulit' => $hasilKulit,
+            'analisis_kuku'  => $hasilKuku,
+            'kuesioner'      => $kuesioner,
+        ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        // Load food recommendations
+        $rekomendasiRef = config('vitamin_deficiency_signs.rekomendasi_makanan', []);
+        $rekomendasiText = '';
+        foreach ($rekomendasiRef as $nutrisi => $info) {
+            $makanan = implode(', ', $info['makanan']);
+            $rekomendasiText .= "- {$nutrisi}: {$makanan} | Suplemen: {$info['suplemen']}\n";
+        }
+
+        $systemPrompt = <<<PROMPT
+Kamu adalah ahli gizi dan dokter anak AI yang menganalisis hasil skrining gabungan dari 3 area tubuh (mata, kulit, kuku) plus kuesioner gizi anak.
+
+DATA ANALISIS PER AREA:
+{$dataGabungan}
+
+REFERENSI REKOMENDASI MAKANAN:
+{$rekomendasiText}
+
+TUGAS UTAMA:
+1. CROSS-CORRELATE: Temukan defisiensi yang muncul di LEBIH DARI SATU area (ini meningkatkan keyakinan).
+   Contoh: kuku pucat + konjungtiva pucat = indikasi anemia/Fe KUAT.
+2. GABUNGKAN dengan data kuesioner untuk validasi tambahan.
+3. Berikan rekomendasi makanan SPESIFIK dari referensi di atas.
+4. Tentukan level risiko keseluruhan.
+
+WAJIB JAWAB DALAM FORMAT JSON (tanpa markdown code block):
+{
+  "status_keseluruhan": "normal" | "terindikasi_ringan" | "terindikasi_sedang" | "terindikasi_berat",
+  "level_risiko": "rendah" | "sedang" | "tinggi",
+  "defisiensi_utama": [
+    {
+      "vitamin_mineral": "nama",
+      "keyakinan": "rendah" | "sedang" | "tinggi",
+      "sumber_bukti": ["mata", "kulit", "kuku", "kuesioner"],
+      "penjelasan": "kenapa disimpulkan ini"
+    }
+  ],
+  "korelasi_antar_area": [
+    {
+      "temuan": "deskripsi korelasi",
+      "area_terlibat": ["mata", "kuku"],
+      "kesimpulan": "apa artinya"
+    }
+  ],
+  "rekomendasi_makanan": [
+    {
+      "makanan": "nama makanan",
+      "nutrisi_target": "vitamin/mineral yang dipenuhi",
+      "frekuensi": "berapa kali sehari/minggu",
+      "prioritas": "tinggi" | "sedang" | "rendah"
+    }
+  ],
+  "rekomendasi_suplemen": [
+    {
+      "suplemen": "nama",
+      "alasan": "kenapa diperlukan"
+    }
+  ],
+  "perlu_rujuk_nakes": true | false,
+  "alasan_rujuk": "penjelasan jika perlu rujuk",
+  "ringkasan_orang_tua": "2-3 kalimat penjelasan sederhana untuk orang tua, tanpa istilah medis berat",
+  "disclaimer": "Ini adalah skrining awal berbasis AI, bukan diagnosis medis. Selalu konsultasikan dengan dokter atau tenaga kesehatan."
+}
+PROMPT;
+
+        try {
+            $body = [
+                'contents' => [[
+                    'role'  => 'user',
+                    'parts' => [['text' => 'Analisis gabungan hasil skrining gizi anak ini dan berikan laporan komprehensif.']],
+                ]],
+                'systemInstruction' => [
+                    'parts' => [['text' => $systemPrompt]],
+                ],
+                'generationConfig' => [
+                    'temperature'      => 0.1,
+                    'responseMimeType' => 'application/json',
+                ],
+            ];
+
+            $response = $this->callWithFallback($body, 120);
+
+            if ($response === null || $response->failed()) {
+                return ['error' => true, 'message' => 'Gagal menghasilkan laporan gabungan.'];
+            }
+
+            $rawText = $response->json('candidates.0.content.parts.0.text') ?? '';
+            $rawText = preg_replace('/^```(?:json)?\s*/i', '', trim($rawText));
+            $rawText = preg_replace('/\s*```$/', '', $rawText);
+
+            $parsed = json_decode($rawText, true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::warning('Combined report JSON parse failed', ['raw' => substr($rawText, 0, 500)]);
+                return [
+                    'status_keseluruhan'  => 'terindikasi_sedang',
+                    'level_risiko'        => 'sedang',
+                    'ringkasan_orang_tua' => $rawText,
+                    'raw_response'        => true,
+                ];
+            }
+
+            return $parsed;
+        } catch (\Exception $e) {
+            Log::error('Combined report exception', ['message' => $e->getMessage()]);
+            return ['error' => true, 'message' => 'Terjadi kesalahan saat menghasilkan laporan.'];
+        }
+    }
 }
 
