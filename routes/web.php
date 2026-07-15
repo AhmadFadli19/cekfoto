@@ -2,17 +2,21 @@
 
 use Illuminate\Support\Facades\Route;
 
-// Vitamin Detection standalone page
+// GiziKu Landing Page
+Route::get('/', function () {
+    return view('welcome');
+});
+
+// GiziKu Screening
+Route::get('/screening', function () {
+    return view('giziku-screening');
+});
+
+// Legacy vitamin detection pages
 Route::get('/vitamin-detection', function () {
     return view('vitamin-detection');
 });
 
-// Vitamin Scan Deep Learning + Gemini Page
 Route::get('/vitamin-scan', function () {
     return view('vitamin-scan');
 });
-
-Route::get('/{any?}', function () {
-    return view('app');
-})->where('any', '.*');
-

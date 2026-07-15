@@ -713,5 +713,404 @@ PROMPT;
             return ['error' => true, 'message' => 'Terjadi kesalahan saat menghasilkan laporan.'];
         }
     }
+
+    // =========================================================================
+    //  GIZIKU — AI Child Nutrition Screening Methods
+    // =========================================================================
+
+    /**
+     * Analyze a child's face or hand photo for nutrition deficiency signs.
+     *
+     * @param  string $base64Image  Base64-encoded image data
+     * @param  string $mimeType     Image MIME type (image/jpeg, image/png, etc.)
+     * @param  string $bagian       'wajah' | 'tangan'
+     * @return array{status: string, temuan: array, defisiensi_indikasi: array, confidence: float, perlu_rujuk: bool}
+     */
+    public function analyzeChildPhoto(string $base64Image, string $mimeType, string $bagian): array
+    {
+        if (empty($this->apiKey)) {
+            return [
+                'status'             => 'error',
+                'temuan'             => [],
+                'defisiensi_indikasi'=> [],
+                'confidence'         => 0.0,
+                'perlu_rujuk'        => false,
+                'pesan_error'        => 'GEMINI_API_KEY belum diatur.',
+            ];
+        }
+
+        $wajahChecklist = <<<TEXT
+- Pucat pada wajah/konjungtiva (anemia, defisiensi zat besi/B12/folat)
+- Ikterus/jaundice: sklera atau kulit kuning (disfungsi hati atau hemolisis)
+- Mata cekung/sunken eyes (dehidrasi, malnutrisi berat)
+- Wajah sembab/puffy face (edema kwashiorkor, hipoproteinemia)
+- Bilateral pitting edema pada kelopak mata (kwashiorkor)
+- Angular stomatitis / celah di sudut bibir (defisiensi riboflavin/B2, zat besi)
+- Bibir kering dan pecah-pecah (dehidrasi, defisiensi B2/B3)
+- Bitot's spots pada sklera (defisiensi vitamin A)
+- Rambut tipis, mudah rontok, atau perubahan warna rambut (defisiensi protein/zinc)
+TEXT;
+
+        $tanganChecklist = <<<TEXT
+- Telapak tangan pucat (anemia, defisiensi zat besi/B12)
+- Kuku pucat/putih (anemia, defisiensi protein)
+- Koilonychia/kuku sendok (defisiensi zat besi berat)
+- Garis Beau pada kuku (defisiensi zinc, protein, atau stress nutrisi)
+- Kuku rapuh/pecah (defisiensi biotin, kalsium, zat besi)
+- Tanda Muehrcke (garis putih horizontal pada kuku — hipoalbuminemia)
+- Kulit tangan kering, bersisik (defisiensi vitamin A, E)
+- Edema pada jari/punggung tangan (kwashiorkor, hipoproteinemia)
+- Luka tidak sembuh atau memar (defisiensi vitamin C atau K)
+TEXT;
+
+        $checklist = ($bagian === 'wajah') ? $wajahChecklist : $tanganChecklist;
+        $bagianLabel = ($bagian === 'wajah') ? 'wajah anak' : 'tangan anak';
+
+        $systemPrompt = <<<PROMPT
+Kamu adalah sistem AI skrining gizi anak berbasis computer vision. Tugasmu menganalisis foto {$bagianLabel} untuk mendeteksi tanda-tanda klinis kekurangan nutrisi.
+
+TANDA-TANDA YANG HARUS DIPERIKSA:
+{$checklist}
+
+INSTRUKSI:
+1. Analisis foto dengan teliti dan identifikasi semua tanda yang terlihat.
+2. Untuk setiap tanda yang ditemukan, catat indikasi defisiensi dan tingkat keyakinan.
+3. Jika ditemukan tanda serius (wajah sangat pucat + sembab, koilonychia berat, ikterus), tandai perlu_rujuk = true.
+4. Gunakan kata "terindikasi", "kemungkinan" — BUKAN "didiagnosis".
+5. Jika foto tidak jelas/blur/tidak relevan, kembalikan status "tidak_dapat_dianalisis".
+
+WAJIB BALAS DALAM FORMAT JSON BERIKUT (tanpa markdown code block, langsung JSON mentah):
+{
+  "status": "normal" | "terindikasi" | "tidak_dapat_dianalisis",
+  "temuan": [
+    {
+      "tanda": "nama tanda klinis yang terdeteksi",
+      "lokasi": "lokasi spesifik pada foto",
+      "deskripsi": "deskripsi singkat apa yang terlihat"
+    }
+  ],
+  "defisiensi_indikasi": [
+    {
+      "nutrisi": "nama vitamin/mineral yang kemungkinan kurang",
+      "keyakinan": "rendah" | "sedang" | "tinggi",
+      "alasan": "alasan singkat berdasarkan tanda visual"
+    }
+  ],
+  "confidence": 0.0,
+  "perlu_rujuk": false,
+  "alasan_rujuk": "alasan jika perlu_rujuk true, kosong jika false",
+  "ringkasan_awam": "penjelasan 1-2 kalimat untuk orang tua dalam bahasa sederhana"
+}
+
+Jika foto normal, kembalikan status "normal", temuan dan defisiensi_indikasi kosong [], confidence tinggi (0.8-0.95), perlu_rujuk false.
+PROMPT;
+
+        $body = [
+            'contents' => [[
+                'role'  => 'user',
+                'parts' => [
+                    ['text' => "Analisis foto {$bagianLabel} berikut untuk skrining tanda kekurangan gizi:"],
+                    [
+                        'inlineData' => [
+                            'mimeType' => $mimeType,
+                            'data'     => $base64Image,
+                        ],
+                    ],
+                ],
+            ]],
+            'systemInstruction' => [
+                'parts' => [['text' => $systemPrompt]],
+            ],
+            'generationConfig' => [
+                'temperature'      => 0.05,
+                'responseMimeType' => 'application/json',
+            ],
+        ];
+
+        try {
+            $response = $this->callWithFallback($body, 120);
+
+            if ($response === null || $response->failed()) {
+                $status = $response ? $response->status() : 500;
+                Log::error('GiziKu analyzeChildPhoto error', [
+                    'bagian' => $bagian,
+                    'status' => $status,
+                    'body'   => $response ? $response->body() : 'No response',
+                ]);
+                return [
+                    'status'             => 'error',
+                    'temuan'             => [],
+                    'defisiensi_indikasi'=> [],
+                    'confidence'         => 0.0,
+                    'perlu_rujuk'        => false,
+                    'pesan_error'        => $status === 429
+                        ? 'AI sedang sibuk. Tunggu 1–2 menit lalu coba lagi.'
+                        : 'Gagal menganalisis foto. Silakan coba lagi.',
+                ];
+            }
+
+            $rawText = $response->json('candidates.0.content.parts.0.text') ?? '';
+            // Strip markdown code fences if present
+            $rawText = preg_replace('/^```(?:json)?\s*/i', '', trim($rawText));
+            $rawText = preg_replace('/\s*```$/', '', $rawText);
+
+            $parsed = json_decode($rawText, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::warning('GiziKu analyzeChildPhoto JSON parse error', [
+                    'bagian' => $bagian,
+                    'raw'    => substr($rawText, 0, 500),
+                ]);
+                // Return a safe fallback
+                return [
+                    'status'             => 'terindikasi',
+                    'temuan'             => [],
+                    'defisiensi_indikasi'=> [],
+                    'confidence'         => 0.5,
+                    'perlu_rujuk'        => false,
+                    'alasan_rujuk'       => '',
+                    'ringkasan_awam'     => $rawText,
+                    'raw_response'       => true,
+                ];
+            }
+
+            return $parsed;
+        } catch (\Exception $e) {
+            Log::error('GiziKu analyzeChildPhoto exception', ['message' => $e->getMessage()]);
+            return [
+                'status'             => 'error',
+                'temuan'             => [],
+                'defisiensi_indikasi'=> [],
+                'confidence'         => 0.0,
+                'perlu_rujuk'        => false,
+                'pesan_error'        => 'Terjadi kesalahan saat menganalisis foto.',
+            ];
+        }
+    }
+
+    /**
+     * Generate a comprehensive child nutrition report for parents.
+     *
+     * @param  array $fotoAnalyses  Results from analyzeChildPhoto (keyed by 'wajah'/'tangan')
+     * @param  array $kuesioner     Questionnaire answers (key-value pairs)
+     * @param  array $childData     Child demographics & anthropometry
+     * @return array{
+     *   ringkasan: string,
+     *   defisiensi_terdeteksi: array,
+     *   rekomendasi_makanan: array,
+     *   rekomendasi_suplemen: array,
+     *   perlu_rujuk: bool,
+     *   alasan_rujuk: string,
+     *   pesan_orang_tua: string
+     * }
+     */
+    public function generateChildNutritionReport(
+        array $fotoAnalyses = [],
+        array $kuesioner    = [],
+        array $childData    = []
+    ): array {
+        $namaAnak    = $childData['nama_anak']    ?? 'Anak';
+        $usiaBulan   = $childData['usia_bulan']   ?? 0;
+        $usiaTahun   = intdiv($usiaBulan, 12);
+        $usiaSisaBulan = $usiaBulan % 12;
+        $usiaLabel   = $usiaTahun > 0
+            ? "{$usiaTahun} tahun {$usiaSisaBulan} bulan"
+            : "{$usiaSisaBulan} bulan";
+        $kelamin     = ($childData['jenis_kelamin'] ?? 'L') === 'L' ? 'laki-laki' : 'perempuan';
+        $bb          = $childData['berat_badan']   ?? null;
+        $tb          = $childData['tinggi_badan']  ?? null;
+        $antropometri = $childData['antropometri'] ?? null;
+
+        // Build data summary
+        $dataAnakText = <<<TEXT
+INFORMASI ANAK:
+- Nama: {$namaAnak}
+- Usia: {$usiaLabel}
+- Jenis kelamin: {$kelamin}
+- Berat badan: {$bb} kg
+- Tinggi badan: {$tb} cm
+TEXT;
+
+        if ($antropometri) {
+            $dataAnakText .= "\n\nHASIL ANTROPOMETRI (Z-SCORE WHO):\n";
+            $dataAnakText .= "- Z-skor BB/U: {$antropometri['z_bbu']} → Status: {$antropometri['status_bbu']}\n";
+            $dataAnakText .= "- Z-skor TB/U: {$antropometri['z_tbu']} → Status: {$antropometri['status_tbu']}\n";
+            $dataAnakText .= "- Z-skor BB/TB: {$antropometri['z_bbtb']} → Status: {$antropometri['status_bbtb']}\n";
+            $dataAnakText .= "- Interpretasi: {$antropometri['interpretasi']}\n";
+        }
+
+        // Photo analyses
+        $fotoText = "\nHASIL ANALISIS FOTO:\n";
+        if (empty($fotoAnalyses)) {
+            $fotoText .= "- Tidak ada foto yang diunggah.\n";
+        } else {
+            foreach ($fotoAnalyses as $bagian => $analisis) {
+                $fotoText .= "\nFoto {$bagian}:\n";
+                $fotoText .= "- Status: " . ($analisis['status'] ?? 'tidak diketahui') . "\n";
+                if (!empty($analisis['temuan'])) {
+                    $fotoText .= "- Temuan: " . json_encode($analisis['temuan'], JSON_UNESCAPED_UNICODE) . "\n";
+                }
+                if (!empty($analisis['defisiensi_indikasi'])) {
+                    $fotoText .= "- Indikasi defisiensi: " . json_encode($analisis['defisiensi_indikasi'], JSON_UNESCAPED_UNICODE) . "\n";
+                }
+                if (!empty($analisis['ringkasan_awam'])) {
+                    $fotoText .= "- Ringkasan: " . $analisis['ringkasan_awam'] . "\n";
+                }
+            }
+        }
+
+        // Questionnaire
+        $kuesionerText = "\nHASIL KUESIONER POLA MAKAN & GIZI:\n";
+        if (empty($kuesioner)) {
+            $kuesionerText .= "- Tidak ada data kuesioner.\n";
+        } else {
+            foreach ($kuesioner as $pertanyaan => $jawaban) {
+                $kuesionerText .= "- {$pertanyaan}: {$jawaban}\n";
+            }
+        }
+
+        $systemPrompt = <<<PROMPT
+Kamu adalah ahli gizi anak dan dokter pediatri AI yang membuat laporan skrining gizi untuk orang tua Indonesia.
+
+KARAKTER RESPONMU:
+- Hangat, empatik, dan penuh perhatian seperti dokter yang peduli
+- Bahasa Indonesia yang mudah dipahami orang awam — hindari istilah medis berat tanpa penjelasan
+- Jangan menakut-nakuti, tapi tetap sampaikan fakta secara jujur
+- Selalu berikan harapan dan langkah konkret yang bisa dilakukan orang tua
+- Sertakan disclaimer bahwa ini skrining awal AI, bukan diagnosis medis final
+
+DATA SKRINING:
+{$dataAnakText}
+
+{$fotoText}
+
+{$kuesionerText}
+
+TUGAS:
+1. Cross-correlate semua temuan (antropometri + foto + kuesioner) untuk menentukan defisiensi utama.
+2. Berikan rekomendasi makanan spesifik yang mudah didapat di Indonesia (nama makanan konkret, bukan hanya nama nutrisi).
+3. Rekomendasikan suplemen jika diperlukan (dengan nama generik dan alasan).
+4. Tentukan apakah anak perlu dirujuk ke dokter/puskesmas/rumah sakit.
+5. Tulis pesan untuk orang tua yang hangat, supportif, dan actionable.
+
+WAJIB BALAS DALAM FORMAT JSON BERIKUT (tanpa markdown code block, langsung JSON mentah):
+{
+  "ringkasan": "Ringkasan kondisi gizi anak dalam 2-3 kalimat yang mudah dipahami",
+  "status_gizi_keseluruhan": "baik" | "perlu_perhatian" | "kurang" | "buruk",
+  "defisiensi_terdeteksi": [
+    {
+      "nutrisi": "nama vitamin/mineral/zat gizi",
+      "tingkat_keyakinan": "rendah" | "sedang" | "tinggi",
+      "sumber_bukti": ["foto", "kuesioner", "antropometri"],
+      "penjelasan": "penjelasan singkat mengapa disimpulkan ini"
+    }
+  ],
+  "rekomendasi_makanan": [
+    {
+      "nama_makanan": "nama makanan spesifik yang mudah didapat di Indonesia",
+      "nutrisi_target": "vitamin/mineral yang dipenuhi",
+      "porsi_anjuran": "berapa banyak dan seberapa sering",
+      "prioritas": "tinggi" | "sedang" | "rendah"
+    }
+  ],
+  "rekomendasi_suplemen": [
+    {
+      "nama_suplemen": "nama suplemen generik",
+      "alasan": "kenapa diperlukan berdasarkan temuan",
+      "catatan": "catatan penggunaan atau konsultasikan dengan dokter"
+    }
+  ],
+  "perlu_rujuk": false,
+  "alasan_rujuk": "alasan jika perlu_rujuk true, kosong jika false",
+  "urgensi_rujuk": "segera" | "minggu_ini" | "bulan_ini" | "tidak_perlu",
+  "pesan_orang_tua": "Pesan hangat dan supportif untuk orang tua, berisi ringkasan kondisi, 2-3 langkah konkret yang bisa dilakukan hari ini, dan kalimat penyemangat. Panjang 3-4 kalimat.",
+  "disclaimer": "Hasil ini adalah skrining awal berbasis AI dan bukan pengganti diagnosis dokter. Selalu konsultasikan hasil ini dengan dokter anak atau tenaga kesehatan terdekat."
+}
+PROMPT;
+
+        try {
+            $body = [
+                'contents' => [[
+                    'role'  => 'user',
+                    'parts' => [['text' => "Tolong buat laporan skrining gizi lengkap untuk {$namaAnak} berdasarkan semua data di atas."]],
+                ]],
+                'systemInstruction' => [
+                    'parts' => [['text' => $systemPrompt]],
+                ],
+                'generationConfig' => [
+                    'temperature'      => 0.1,
+                    'responseMimeType' => 'application/json',
+                ],
+            ];
+
+            $response = $this->callWithFallback($body, 120);
+
+            if ($response === null || $response->failed()) {
+                $status = $response ? $response->status() : 500;
+                Log::error('GiziKu generateChildNutritionReport error', [
+                    'status' => $status,
+                    'body'   => $response ? $response->body() : 'No response',
+                ]);
+                return $this->fallbackNutritionReport($namaAnak);
+            }
+
+            $rawText = $response->json('candidates.0.content.parts.0.text') ?? '';
+            $rawText = preg_replace('/^```(?:json)?\s*/i', '', trim($rawText));
+            $rawText = preg_replace('/\s*```$/', '', $rawText);
+
+            $parsed = json_decode($rawText, true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                Log::warning('GiziKu generateChildNutritionReport JSON parse error', [
+                    'raw' => substr($rawText, 0, 500),
+                ]);
+                return $this->fallbackNutritionReport($namaAnak, $rawText);
+            }
+
+            return $parsed;
+        } catch (\Exception $e) {
+            Log::error('GiziKu generateChildNutritionReport exception', ['message' => $e->getMessage()]);
+            return $this->fallbackNutritionReport($namaAnak);
+        }
+    }
+
+    /**
+     * Fallback report when AI call fails.
+     */
+    private function fallbackNutritionReport(string $namaAnak, string $rawText = ''): array
+    {
+        return [
+            'ringkasan'               => "Laporan untuk {$namaAnak} tidak dapat dibuat secara otomatis saat ini. Silakan coba kembali dalam beberapa saat.",
+            'status_gizi_keseluruhan' => 'perlu_perhatian',
+            'defisiensi_terdeteksi'   => [],
+            'rekomendasi_makanan'     => [
+                [
+                    'nama_makanan'   => 'Telur ayam',
+                    'nutrisi_target' => 'Protein, zat besi, vitamin B12',
+                    'porsi_anjuran'  => '1 butir per hari',
+                    'prioritas'      => 'tinggi',
+                ],
+                [
+                    'nama_makanan'   => 'Hati ayam',
+                    'nutrisi_target' => 'Zat besi, vitamin A, B12',
+                    'porsi_anjuran'  => '2-3 kali per minggu',
+                    'prioritas'      => 'tinggi',
+                ],
+                [
+                    'nama_makanan'   => 'Sayuran hijau (bayam, kangkung)',
+                    'nutrisi_target' => 'Zat besi, vitamin A, folat',
+                    'porsi_anjuran'  => 'Setiap hari',
+                    'prioritas'      => 'sedang',
+                ],
+            ],
+            'rekomendasi_suplemen'    => [],
+            'perlu_rujuk'             => false,
+            'alasan_rujuk'            => '',
+            'urgensi_rujuk'           => 'tidak_perlu',
+            'pesan_orang_tua'         => "Terima kasih telah memperhatikan kesehatan {$namaAnak}. Pastikan anak mendapat makanan bergizi seimbang setiap hari, termasuk protein hewani, sayuran, dan buah-buahan. Jika ada kekhawatiran, jangan ragu untuk berkonsultasi dengan dokter anak atau bidan terdekat.",
+            'disclaimer'              => 'Hasil ini adalah skrining awal berbasis AI dan bukan pengganti diagnosis dokter. Selalu konsultasikan hasil ini dengan dokter anak atau tenaga kesehatan terdekat.',
+            'raw_response'            => !empty($rawText),
+        ];
+    }
 }
 
